@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import unrar from 'node-unrar-js';
+import * as unrar from 'node-unrar-js';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
 import { BinaryReader } from 'telegram/extensions';
 import { IGE } from 'telegram/crypto/IGE';
 import { AuthKey } from 'telegram/crypto/AuthKey';
 import { StringSession } from 'telegram/sessions';
+import fetch from 'node-fetch-commonjs';
+import * as jszip from 'jszip';
 
 @Injectable()
 export class ConverterService {
@@ -13,14 +14,37 @@ export class ConverterService {
     const metadata = (await fetch(
       `https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=${url}&path=/&offset=0`,
     ).then((res) => res.json())) as any;
-    return await fetch(metadata.file).then((res) => res.blob());
+    return await fetch(metadata.file)
+      .then((res) => res.blob())
+      .then((blob) => blob.arrayBuffer())
+      .then((arrayBuffer) => Buffer.from(arrayBuffer));
   }
 
-  async extract(archive: Buffer) {
+  async unrar(archive: Buffer) {
     const extractor = await unrar.createExtractorFromData({
       data: archive,
     });
     const { files } = extractor.extract();
+    const filesArr = Array.from(files);
+    const result = filesArr.map((file) => ({
+      name: file.fileHeader.name,
+      buffer: Buffer.from(file.extraction),
+    }));
+    return result;
+  }
+
+  async unzip(zip: Buffer) {
+    const jszipInstance = new jszip();
+    const result = await jszipInstance.loadAsync(zip);
+
+    const files: Array<{ name: string; buffer: Buffer }> = [];
+    const names = Object.keys(result.files);
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const buffer = await result.files[name].async('nodebuffer');
+      files.push({ name, buffer });
+    }
+
     return files;
   }
 
@@ -150,7 +174,7 @@ export class ConverterService {
     }
   }
 
-  async convert(baseFile: Buffer, keyFile: Buffer) {
+  async convert(keyFile: Buffer, baseFile: Buffer) {
     const data = this.tdesktop_open(keyFile);
     const salt = this.tdesktop_readBuffer(data);
     if (salt.length !== 32) {
@@ -185,9 +209,7 @@ export class ConverterService {
 
     final.read(12);
     const userId = final.read(4).reverse().readUInt32LE();
-    console.log('User ID is ', userId);
     const mainDc = final.read(4).reverse().readUInt32LE();
-    console.log('Main DC is ', mainDc);
     const length = final.read(4).reverse().readUInt32LE();
     const mainAuthKey = new AuthKey();
     for (let i = 0; i < length; i++) {
@@ -199,21 +221,45 @@ export class ConverterService {
         session.setDC(mainDc, this.getServerAddress(mainDc), 443);
         session.setAuthKey(mainAuthKey);
 
-        console.log('Session is');
-        const sessionString = session.save();
-        console.log(sessionString);
-        return sessionString;
+        return JSON.stringify({
+          apiId: 2496,
+          apiHash: '8da85b0d5bfe62527e5b244c209159c3',
+          deviceModel: 'PC',
+          systemVersion: 'Windows 10',
+          appVersion: '2.7.1',
+          serverAddress: session.serverAddress,
+          dcId: session.dcId,
+          port: session.port,
+          authKey: session.authKey?.getKey()?.toString('hex'),
+        });
       }
     }
     return;
   }
 
-  processLinks() {
-    const filesToTry: BinaryReader[] = [];
-    for (const i of ['0', '1', 's']) {
-      if (fs.existsSync(name + i)) {
-        filesToTry.push(new BinaryReader(fs.readFileSync(name + i)));
+  getFiles(files: Array<{ name: string; buffer: Buffer }>) {
+    const old_session_key = 'data';
+    const part_one_md5 = this.tdesktop_md5(old_session_key).slice(0, 16);
+
+    const result = {
+      keyFile: null,
+      baseFile: null,
+    } as {
+      keyFile: Buffer | null;
+      baseFile: Buffer | null;
+    };
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!result.keyFile && file.name.includes('key_data')) {
+        result.keyFile = file.buffer;
+      } else if (!result.baseFile && file.name.includes(part_one_md5)) {
+        result.baseFile = file.buffer;
+      }
+      if (result.keyFile && result.baseFile) {
+        break;
       }
     }
+    return result;
   }
 }

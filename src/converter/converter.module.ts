@@ -4,5 +4,6 @@ import { ConverterService } from './converter.service';
 @Module({
   imports: [],
   providers: [ConverterService],
+  exports: [ConverterService],
 })
 export class ConverterModule {}
