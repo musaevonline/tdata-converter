@@ -6,7 +6,7 @@ import { IGE } from 'telegram/crypto/IGE';
 import { AuthKey } from 'telegram/crypto/AuthKey';
 import { StringSession } from 'telegram/sessions';
 import fetch from 'node-fetch-commonjs';
-import jszip from 'jszip';
+import * as jszip from 'jszip';
 
 @Injectable()
 export class ConverterService {
@@ -36,16 +36,26 @@ export class ConverterService {
   async unzip(zip: Buffer) {
     const jszipInstance = new jszip();
     const result = await jszipInstance.loadAsync(zip);
-
     const files: Array<{ name: string; buffer: Buffer }> = [];
     const names = Object.keys(result.files);
     for (let i = 0; i < names.length; i++) {
       const name = names[i];
       const buffer = await result.files[name].async('nodebuffer');
-      files.push({ name, buffer });
+      if (!result.files[name].dir) {
+        files.push({ name, buffer });
+      }
     }
 
     return files;
+  }
+
+  async zip(files: Array<{ name: string; buffer: Buffer | string }>) {
+    const jszipInstance = new jszip();
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      jszipInstance.file(file.name, file.buffer);
+    }
+    return jszipInstance.generateAsync({ type: 'nodebuffer' });
   }
 
   tdesktop_md5(data: string) {
@@ -136,9 +146,9 @@ export class ConverterService {
       throw new Error('WRONG MAGIC');
     }
     const versionBytes = fileToTry.read(4);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const version = versionBytes.readInt32LE(0);
 
-    console.error(`TDesktop version: ${version}`);
     let data = fileToTry.read();
     const md5 = data.slice(-16).toString('hex');
     data = data.slice(0, -16);
@@ -196,7 +206,6 @@ export class ConverterService {
       this.tdesktop_decrypt(new BinaryReader(encryptedInfo), key),
     );
     const count = info.readUInt32BE();
-    console.log('Accounts count', count);
     if (count !== 1) {
       throw new Error('Currently only supporting one account at a time');
     }
@@ -222,17 +231,7 @@ export class ConverterService {
         session.setDC(mainDc, this.getServerAddress(mainDc), 443);
         session.setAuthKey(mainAuthKey);
 
-        return JSON.stringify({
-          apiId: 2496,
-          apiHash: '8da85b0d5bfe62527e5b244c209159c3',
-          deviceModel: 'PC',
-          systemVersion: 'Windows 10',
-          appVersion: '2.7.1',
-          serverAddress: session.serverAddress,
-          dcId: session.dcId,
-          port: session.port,
-          authKey: session.authKey?.getKey()?.toString('hex'),
-        });
+        return session;
       }
     }
     return;
@@ -252,9 +251,12 @@ export class ConverterService {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (!result.keyFile && file.name.includes('key_data')) {
+      if (!result.keyFile && file.name.slice(0, -1).endsWith('key_data')) {
         result.keyFile = file.buffer;
-      } else if (!result.baseFile && file.name.includes(part_one_md5)) {
+      } else if (
+        !result.baseFile &&
+        file.name.slice(0, -1).endsWith(part_one_md5)
+      ) {
         result.baseFile = file.buffer;
       }
       if (result.keyFile && result.baseFile) {

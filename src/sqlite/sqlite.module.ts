@@ -1,9 +1,8 @@
-import {  } from './sqlite.service';
+import { SqliteService } from './sqlite.service';
 import { Module } from '@nestjs/common';
-import { AppService } from './app.service';
-
 @Module({
-  imports: [ConverterModule],
-  providers: [AppService],
+  imports: [],
+  providers: [SqliteService],
+  exports: [SqliteService],
 })
-export class AppModule {}
+export class SqliteModule {}
