@@ -6,7 +6,7 @@ import { IGE } from 'telegram/crypto/IGE';
 import { AuthKey } from 'telegram/crypto/AuthKey';
 import { StringSession } from 'telegram/sessions';
 import fetch from 'node-fetch-commonjs';
-import * as jszip from 'jszip';
+import jszip from 'jszip';
 
 @Injectable()
 export class ConverterService {
@@ -208,6 +208,7 @@ export class ConverterService {
     const final = new BinaryReader(this.tdesktop_readBuffer(main));
 
     final.read(12);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const userId = final.read(4).reverse().readUInt32LE();
     const mainDc = final.read(4).reverse().readUInt32LE();
     const length = final.read(4).reverse().readUInt32LE();
