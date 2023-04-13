@@ -1,10 +1,16 @@
-import { SqliteService } from './sqlite/sqlite.service';
-import { ConverterService } from './converter/converter.service';
-import { Body, Controller, Post } from '@nestjs/common';
+import { SqliteService } from './sqlite/sqlite.service.js';
+import { ConverterService } from './converter/converter.service.js';
+import {
+  Body,
+  Controller,
+  Post,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 export interface IConvertDto {
   urls: string[];
-  archives: string[];
 }
 
 @Controller()
@@ -12,19 +18,39 @@ export class AppController {
   constructor(
     private readonly converterService: ConverterService,
     private readonly sqliteService: SqliteService,
-  ) {
-    this.convert();
-  }
+  ) {}
 
-  @Post()
-  async convert() {
-    const urls = 'https://disk.yandex.ru/d/zDM_lIypm0kp4w'.split('\n');
-    const result: Array<{ name: string; buffer: Buffer | string }> = [];
+  @Post('/convert')
+  @UseInterceptors(FilesInterceptor('files'))
+  async convert(
+    @Body() body: IConvertDto,
+    @UploadedFiles() uploadedFiles: Array<Express.Multer.File>,
+  ) {
+    const files = uploadedFiles.map((file) => file.buffer);
+    const urls = Array.isArray(body.urls)
+      ? body.urls
+      : [body.urls].filter(Boolean);
+
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
-      const zip = await this.converterService.downloadFromYandex(url);
-      const files = await this.converterService.unzip(zip);
-      const { keyFile, baseFile } = this.converterService.getFiles(files);
+      if (url.startsWith('https://disk.yandex.ru/')) {
+        const file = await this.converterService.downloadFromYandex(url);
+        files.push(file);
+      } else if (url.startsWith('https://mega.nz/')) {
+        const file = await this.converterService.downloadFromMega(url);
+        files.push(file);
+      } else if (url.startsWith('https://drive.google.com/')) {
+        const file = await this.converterService.downloadFromDrive(url);
+        files.push(file);
+      }
+    }
+
+    const result: Array<{ name: string; buffer: Buffer | string }> = [];
+    for (let i = 0; i < files.length; i++) {
+      const archive = files[i];
+      const archiveFiles = await this.converterService.uncompress(archive);
+      const { keyFile, baseFile } =
+        this.converterService.getFiles(archiveFiles);
       const session = await this.converterService.convert(keyFile, baseFile);
       const sqlite = this.sqliteService.buildSession(
         session.dcId,

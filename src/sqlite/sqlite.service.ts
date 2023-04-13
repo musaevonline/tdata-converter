@@ -1,4 +1,4 @@
-import * as Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { Injectable } from '@nestjs/common';
 import { readFileSync } from 'fs';
 
