@@ -18,7 +18,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "deploy": "npm run build && rsync -azP dist/ package.json template.session root@vk.musaev.online:/root/tdata-converter --progress && ssh root@vk.musaev.online 'cd /root/tdata-converter && npm i && pm2 restart tdata-converter'"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",
