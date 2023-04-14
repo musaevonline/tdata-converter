@@ -1,89 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import * as unrar from 'node-unrar-js';
 import * as crypto from 'crypto';
 import { BinaryReader } from 'telegram/extensions';
 import { IGE } from 'telegram/crypto/IGE';
 import { AuthKey } from 'telegram/crypto/AuthKey';
 import { StringSession } from 'telegram/sessions';
-import fetch from 'node-fetch-commonjs';
-import jszip from 'jszip';
-import * as Mega from 'megajs';
-const fileType = import('file-type');
+import { IFile } from 'src/app.interface';
 
 @Injectable()
 export class ConverterService {
-  async downloadFromYandex(url: string) {
-    const metadata = (await fetch(
-      `https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=${url}&path=/&offset=0`,
-    ).then((res) => res.json())) as any;
-    return fetch(metadata.file)
-      .then((res) => res.blob())
-      .then((blob) => blob.arrayBuffer())
-      .then((arrayBuffer) => Buffer.from(arrayBuffer));
-  }
-
-  async downloadFromMega(url: string) {
-    return Mega.File.fromURL(url).downloadBuffer({});
-  }
-
-  async downloadFromDrive(url: string) {
-    const id = url.replace(/.*file\/d\/(.*)\/.*/, '$1');
-    return fetch(`https://drive.google.com/uc?id=${id}`)
-      .then((res) => res.blob())
-      .then((blob) => blob.arrayBuffer())
-      .then((arrayBuffer) => Buffer.from(arrayBuffer));
-  }
-
-  async unrar(archive: Buffer) {
-    const extractor = await unrar.createExtractorFromData({
-      data: archive,
-    });
-    const { files } = extractor.extract();
-    const filesArr = Array.from(files);
-    const result = filesArr
-      .filter((file) => file.extraction)
-      .map((file) => ({
-        name: file.fileHeader.name,
-        buffer: Buffer.from(file.extraction),
-      }));
-    return result;
-  }
-
-  async unzip(zip: Buffer) {
-    const jszipInstance = new jszip();
-    const result = await jszipInstance.loadAsync(zip);
-    const files: Array<{ name: string; buffer: Buffer }> = [];
-    const names = Object.keys(result.files);
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      const buffer = await result.files[name].async('nodebuffer');
-      if (!result.files[name].dir) {
-        files.push({ name, buffer });
-      }
-    }
-
-    return files;
-  }
-
-  async uncompress(compressed: Buffer) {
-    const { fileTypeFromBuffer } = await fileType;
-    const { ext } = await fileTypeFromBuffer(compressed);
-    if (ext === 'zip') {
-      return await this.unzip(compressed);
-    } else if (ext === 'rar') {
-      return await this.unrar(compressed);
-    }
-  }
-
-  async zip(files: Array<{ name: string; buffer: Buffer | string }>) {
-    const jszipInstance = new jszip();
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      jszipInstance.file(file.name, file.buffer);
-    }
-    return jszipInstance.generateAsync({ type: 'nodebuffer' });
-  }
-
   tdesktop_md5(data: string) {
     let result = '';
     const hash = crypto.createHash('md5').update(data).digest('hex');
@@ -263,7 +187,7 @@ export class ConverterService {
     return;
   }
 
-  getFiles(files: Array<{ name: string; buffer: Buffer }>) {
+  getFiles(files: IFile[]) {
     const old_session_key = 'data';
     const part_one_md5 = this.tdesktop_md5(old_session_key).slice(0, 16);
 
