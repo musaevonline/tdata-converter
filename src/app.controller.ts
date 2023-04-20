@@ -77,19 +77,30 @@ export class AppController {
           session.authKey.getKey(),
         );
 
-        result.push({ name: `${i}.session`, buffer: sqlite });
+        result.push({ name: `${i + 1}.session`, buffer: sqlite });
         result.push({
-          name: `${i}.json`,
+          name: `${i + 1}.json`,
           buffer: Buffer.from(
             JSON.stringify({
-              apiId: 2496,
-              apiHash: '8da85b0d5bfe62527e5b244c209159c3',
-              deviceModel: 'PC',
-              systemVersion: 'Windows 10',
-              appVersion: '2.7.1',
-              serverAddress: session.serverAddress,
-              dcId: session.dcId,
-              port: session.port,
+              session_file: i + 1,
+              phone: undefined,
+              register_time: undefined,
+              app_id: 17349,
+              app_hash: '344583e45741c457fe1862106095a5eb',
+              sdk: 'Telegram Desktop',
+              app_version: '4.7.1',
+              device: 'Telegram Desktop',
+              last_check_time: undefined,
+              avatar: undefined,
+              first_name: undefined,
+              last_name: undefined,
+              sex: undefined,
+              lang_pack: 'en',
+              system_lang_pack: 'en-us',
+              success_registred: true,
+              twoFA: undefined,
+              ipv6: undefined,
+              server_address6: undefined,
             }),
           ),
         });
