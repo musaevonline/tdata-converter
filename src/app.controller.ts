@@ -17,7 +17,7 @@ export interface IConvertDto {
   urls: string[];
 }
 
-@Controller()
+@Controller('/api')
 export class AppController {
   constructor(
     private readonly converterService: ConverterService,
