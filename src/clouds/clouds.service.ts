@@ -6,9 +6,9 @@ import * as Mega from 'megajs';
 export class CloudsService {
   async downloadFromYandex(url: string) {
     const metadata = (await fetch(
-      `https://cloud-api.yandex.net/v1/disk/public/resources/?public_key=${url}&path=/&offset=0`,
+      `https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${url}&path=/&offset=0`,
     ).then((res) => res.json())) as any;
-    return fetch(metadata.file)
+    return fetch(metadata.href)
       .then((res) => res.blob())
       .then((blob) => blob.arrayBuffer())
       .then((arrayBuffer) => Buffer.from(arrayBuffer));
